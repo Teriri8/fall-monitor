@@ -142,10 +142,18 @@ class CameraFallConfig:
     slow_slump_confirm_s: float = 1.00
     suspect_sec: float = 3.0
     alarm_sec: float = 8.0
-    jitter_tolerance_s: float = 0.60
+    jitter_tolerance_s: float = 1.20
     recover_sec: float = 0.80
     missing_normal_frames: int = 15
     missing_alarm_hold_sec: float = 8.0
+    min_box_area_ratio: float = 0.015
+    profile: str = "standard"
+
+
+PROFILE_PRESETS: dict[str, tuple[float, float]] = {
+    "standard": (3.0, 8.0),
+    "demo": (1.0, 3.0),
+}
 
 
 def _extract_midpoint(
@@ -207,6 +215,38 @@ class CameraFallDetector:
         self._stand_start_s: float | None = None
         self._missing_frames = 0
         self._missing_start_s: float | None = None
+
+    def set_profile(
+        self,
+        profile: str,
+        suspect_sec: float | None = None,
+        alarm_sec: float | None = None,
+    ) -> dict[str, Any]:
+        """Switch timing preset ('standard' 3s/8s or 'demo' 1s/3s) or custom thresholds."""
+        mode = profile.strip().lower()
+        if mode in PROFILE_PRESETS:
+            s_sec, a_sec = PROFILE_PRESETS[mode]
+            self.cfg.profile = mode
+            self.cfg.suspect_sec = s_sec
+            self.cfg.alarm_sec = a_sec
+        else:
+            self.cfg.profile = "custom"
+        if suspect_sec is not None:
+            self.cfg.suspect_sec = max(0.3, float(suspect_sec))
+        if alarm_sec is not None:
+            self.cfg.alarm_sec = max(self.cfg.suspect_sec + 0.5, float(alarm_sec))
+        return self.get_profile()
+
+    def get_profile(self) -> dict[str, Any]:
+        return {
+            "profile": self.cfg.profile,
+            "suspect_sec": self.cfg.suspect_sec,
+            "alarm_sec": self.cfg.alarm_sec,
+            "jitter_tolerance_s": self.cfg.jitter_tolerance_s,
+        }
+
+    def is_tracking_fall(self) -> bool:
+        return self.state in ("suspect", "alarm") or self._lying_start_s is not None
 
     def _compute_hip_vy(self, now_s: float, hip_y_norm: float) -> float:
         self._hip_history.append((now_s, hip_y_norm))
@@ -307,6 +347,9 @@ class CameraFallDetector:
                 "hip_vy": 0.0,
                 "visible_kps": 0,
                 "lying_elapsed_s": 0.0 if self._lying_start_s is None else round(now_s - self._lying_start_s, 2),
+                "profile": cfg.profile,
+                "suspect_sec": cfg.suspect_sec,
+                "alarm_sec": cfg.alarm_sec,
             }
             return event, metrics
 
@@ -392,6 +435,9 @@ class CameraFallDetector:
                     self.state = "normal"
                     self.action = "stand"
                     self.reason = "recovered" if was_alert else "idle"
+                elif self.state == "normal":
+                    self.action = "stand"
+                    self.reason = "idle"
             else:
                 self._stand_start_s = None
                 if (
@@ -426,6 +472,9 @@ class CameraFallDetector:
             "hip_vy": round(hip_vy, 3),
             "visible_kps": visible_kps,
             "lying_elapsed_s": round(lying_elapsed, 2),
+            "profile": cfg.profile,
+            "suspect_sec": cfg.suspect_sec,
+            "alarm_sec": cfg.alarm_sec,
         }
         return event, metrics
 
@@ -565,6 +614,7 @@ class YoloPoseRunner:
         device: str | None = None,
         conf: float = 0.35,
         imgsz: int = 640,
+        min_box_area_ratio: float = 0.015,
     ) -> None:
         import torch
         from ultralytics import YOLO
@@ -574,6 +624,7 @@ class YoloPoseRunner:
         self.device = device
         self.conf = conf
         self.imgsz = imgsz
+        self.min_box_area_ratio = float(min_box_area_ratio)
         self.model = YOLO(weights)
         self.model.to(self.device)
         self._last_center: tuple[float, float] | None = None
@@ -581,7 +632,7 @@ class YoloPoseRunner:
         dummy = np.zeros((480, 640, 3), dtype=np.uint8)
         self.model.predict(dummy, device=self.device, conf=self.conf, imgsz=self.imgsz, verbose=False)
 
-    def infer(self, frame: np.ndarray) -> tuple[PoseObservation, float]:
+    def infer(self, frame: np.ndarray, *, lock_target: bool = False) -> tuple[PoseObservation, float]:
         t0 = time.perf_counter()
         results = self.model.predict(
             frame,
@@ -603,20 +654,30 @@ class YoloPoseRunner:
             else None
         )
 
-        best_idx = 0
-        if len(boxes_xyxy) > 1:
+        # Filter tiny distant background boxes
+        frame_area = max(1.0, float(w * h))
+        candidates: list[tuple[int, float, float, float, float]] = []
+        for i, box in enumerate(boxes_xyxy):
+            bx1, by1, bx2, by2 = box
+            bw = max(1.0, float(bx2 - bx1))
+            bh = max(1.0, float(by2 - by1))
+            area_norm = (bw * bh) / frame_area
+            if area_norm >= self.min_box_area_ratio:
+                candidates.append((i, area_norm, bw / bh, (bx1 + bx2) * 0.5, (by1 + by2) * 0.5))
+
+        if not candidates:
+            return PoseObservation(bbox=None, frame_w=w, frame_h=h, keypoints=None), infer_ms
+
+        best_idx = candidates[0][0]
+        if len(candidates) > 1:
             best_score = -1e9
-            for i, box in enumerate(boxes_xyxy):
-                bx1, by1, bx2, by2 = box
-                bw = max(1.0, float(bx2 - bx1))
-                bh = max(1.0, float(by2 - by1))
-                area_norm = (bw * bh) / max(1.0, float(w * h))
-                wh_bonus = 0.25 if (bw / bh) >= 1.15 else 0.0
-                cx, cy = (bx1 + bx2) * 0.5, (by1 + by2) * 0.5
+            dist_weight = 1.15 if lock_target else 0.35
+            for i, area_norm, wh, cx, cy in candidates:
+                wh_bonus = 0.25 if wh >= 1.15 else 0.0
                 dist_penalty = 0.0
                 if self._last_center is not None:
                     dist_penalty = math.hypot(cx - self._last_center[0], cy - self._last_center[1]) / max(w, h)
-                score = area_norm + wh_bonus - 0.35 * dist_penalty
+                score = area_norm + wh_bonus - dist_weight * dist_penalty
                 if score > best_score:
                     best_score = score
                     best_idx = i
@@ -638,12 +699,19 @@ def annotate_frame(
     """Draw pose skeleton, bounding box, and telemetry HUD onto frame copy."""
     canvas = frame.copy()
     state = event["state"]
+    lying_elapsed = float(metrics.get("lying_elapsed_s", 0.0) or 0.0)
+    suspect_sec = float(metrics.get("suspect_sec", 3.0) or 3.0)
     color_map = {
         "normal": (46, 204, 113),
         "suspect": (0, 180, 255),
         "alarm": (48, 48, 255),
     }
-    color = color_map.get(state, (200, 200, 200))
+    if state == "normal" and lying_elapsed > 0.2:
+        color = (245, 190, 56)  # BGR sky/cyan-amber tint for pre-suspect lying countdown
+        display_state = f"LYING {lying_elapsed:.1f}/{suspect_sec:.0f}s"
+    else:
+        color = color_map.get(state, (200, 200, 200))
+        display_state = state.upper()
 
     if obs.bbox is not None:
         x1, y1, x2, y2 = [int(round(v)) for v in obs.bbox]
@@ -668,9 +736,9 @@ def annotate_frame(
             if c >= 0.3:
                 cv2.circle(canvas, (int(round(x)), int(round(y))), 4, color, -1)
 
-    cv2.rectangle(canvas, (8, 8), (520, 96), (18, 22, 28), -1)
-    cv2.rectangle(canvas, (8, 8), (520, 96), color, 2)
-    line1 = f"CAM-1 | STATE: {state.upper()} ({event['reason']}) | FPS: {fps:.1f} | {infer_ms:.1f}ms"
+    cv2.rectangle(canvas, (8, 8), (560, 96), (14, 18, 26), -1)
+    cv2.rectangle(canvas, (8, 8), (560, 96), color, 2)
+    line1 = f"CAM-1 | {display_state} ({event['reason']}) | FPS: {fps:.1f} | {infer_ms:.1f}ms"
     line2 = (
         f"w/h: {metrics.get('wh_ratio') or '-'} | "
         f"angle: {metrics.get('torso_angle_deg') if metrics.get('torso_angle_deg') is not None else '-'} deg | "
@@ -694,14 +762,21 @@ class CameraSource:
         clock: MonotonicClock | None = None,
         config: CameraFallConfig | None = None,
         on_event: Callable[[dict[str, Any], dict[str, Any]], None] | None = None,
+        recorder: Any | None = None,
         show_cv: bool = False,
         heartbeat_s: float = 0.5,
     ) -> None:
         self.clock = clock or MonotonicClock()
+        cfg = config or CameraFallConfig()
         self.grabber = LatestFrameGrabber(source=source, clock=self.clock)
-        self.pose = YoloPoseRunner(weights=weights, device=device)
-        self.detector = CameraFallDetector(config=config, device_id="cam-1")
+        self.pose = YoloPoseRunner(
+            weights=weights,
+            device=device,
+            min_box_area_ratio=cfg.min_box_area_ratio,
+        )
+        self.detector = CameraFallDetector(config=cfg, device_id="cam-1")
         self.on_event = on_event
+        self.recorder = recorder
         self.show_cv = show_cv
         self.heartbeat_s = heartbeat_s
 
@@ -738,7 +813,12 @@ class CameraSource:
                     continue
                 last_processed_id = frame_id
 
-                obs, infer_ms = self.pose.infer(frame)
+                if self.recorder is not None and self.recorder.is_recording():
+                    self.recorder.write_frame(frame)
+
+                with self._detector_lock:
+                    lock_target = self.detector.is_tracking_fall()
+                obs, infer_ms = self.pose.infer(frame, lock_target=lock_target)
                 with self._detector_lock:
                     event, metrics = self.detector.update(obs, t_ms=t_ms, frame_id=frame_id)
 
@@ -797,6 +877,19 @@ class CameraSource:
     def reset(self) -> None:
         with self._detector_lock:
             self.detector.reset()
+
+    def set_profile(
+        self,
+        profile: str,
+        suspect_sec: float | None = None,
+        alarm_sec: float | None = None,
+    ) -> dict[str, Any]:
+        with self._detector_lock:
+            return self.detector.set_profile(profile, suspect_sec=suspect_sec, alarm_sec=alarm_sec)
+
+    def get_profile(self) -> dict[str, Any]:
+        with self._detector_lock:
+            return self.detector.get_profile()
 
     def stop(self) -> None:
         self._stop_event.set()

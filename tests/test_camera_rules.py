@@ -149,10 +149,45 @@ class TestCameraRules(unittest.TestCase):
         )
         det.update(lying_obs, t_ms=0, frame_id=1)
         det.update(lying_obs, t_ms=1500, frame_id=2)
-        # Brief 0.4s missing bbox (< 0.6s jitter tolerance)
-        det.update(PoseObservation(bbox=None, frame_w=640, frame_h=480), t_ms=1900, frame_id=3)
+        # Brief 1.0s missing bbox (< 1.2s anti-glare jitter tolerance)
+        det.update(PoseObservation(bbox=None, frame_w=640, frame_h=480), t_ms=2500, frame_id=3)
         ev, _ = det.update(lying_obs, t_ms=3100, frame_id=4)
         self.assertEqual(ev["state"], "suspect")
+
+    def test_demo_profile_and_immediate_standing_action(self) -> None:
+        det = CameraFallDetector()
+        prof = det.set_profile("demo")
+        self.assertEqual(prof["suspect_sec"], 1.0)
+        self.assertEqual(prof["alarm_sec"], 3.0)
+
+        lying_obs = PoseObservation(
+            bbox=(200, 320, 440, 430),
+            frame_w=640,
+            frame_h=480,
+            keypoints=_make_kps((220, 385), (380, 390)),
+        )
+        stand_obs = PoseObservation(
+            bbox=(260, 80, 360, 340),
+            frame_w=640,
+            frame_h=480,
+            keypoints=_make_kps((310, 120), (310, 200)),
+        )
+        # Lying for 0.4s -> action=lying, then immediately standing while still normal -> action=stand (no stale lying)
+        det.update(lying_obs, t_ms=0, frame_id=1)
+        ev_lie, _ = det.update(lying_obs, t_ms=400, frame_id=2)
+        self.assertEqual(ev_lie["action"], "lying")
+        ev_stand, _ = det.update(stand_obs, t_ms=600, frame_id=3)
+        self.assertEqual(ev_stand["state"], "normal")
+        self.assertEqual(ev_stand["action"], "stand")
+
+        # Now lie continuously in demo mode: suspect at 1.0s, alarm at 3.0s
+        det.reset()
+        det.set_profile("demo")
+        det.update(lying_obs, t_ms=1000, frame_id=10)
+        ev_s, _ = det.update(lying_obs, t_ms=2000, frame_id=11)
+        self.assertEqual(ev_s["state"], "suspect")
+        ev_a, _ = det.update(lying_obs, t_ms=4000, frame_id=12)
+        self.assertEqual(ev_a["state"], "alarm")
 
 
 if __name__ == "__main__":

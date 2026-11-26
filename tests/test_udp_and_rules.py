@@ -6,6 +6,7 @@ import unittest
 from fall_recog.board_log import parse_radar_payload
 from fall_recog.protocol import EVENT_KEYS
 from fall_recog.rules import FallDetector
+from pc.serial_udp_bridge import should_forward_line
 from pc.udp_source import UdpRadarSource, send_udp_payload
 
 
@@ -69,6 +70,11 @@ class TestUdpAndRadarRules(unittest.TestCase):
             self.assertEqual(tuple(received[0].keys()), EVENT_KEYS)
         finally:
             src.stop()
+
+    def test_serial_bridge_line_filter(self) -> None:
+        self.assertTrue(should_forward_line("[RADAR_SAMPLE] gear=2 rng=1.85 vel=-1.20 snr=18.5 hm=1"))
+        self.assertTrue(should_forward_line('{"gear":1,"rng":2.0,"vel":0.1,"snr":16.0,"human":1}'))
+        self.assertFalse(should_forward_line("booting ws63 wifi driver..."))
 
 
 if __name__ == "__main__":

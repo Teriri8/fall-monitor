@@ -6,14 +6,20 @@ import argparse
 import os
 import sys
 import threading
-import time
 from datetime import datetime
 
 import uvicorn
 
 from fall_recog.protocol import MonotonicClock
-from pc.camera_source import DEFAULT_USB_CAMERA_INDEX, CameraSource, list_cameras
+from pc.camera_source import (
+    DEFAULT_USB_CAMERA_INDEX,
+    PROFILE_PRESETS,
+    CameraFallConfig,
+    CameraSource,
+    list_cameras,
+)
 from pc.fusion import FusionArbiter
+from pc.recorder import SessionRecorder
 from pc.server import EventStore, create_app, get_lan_urls
 from pc.udp_source import UdpRadarSource
 
@@ -27,6 +33,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--weights", default="models/yolov8n-pose.pt", help="YOLOv8 pose weights path")
     parser.add_argument("--device", default=None, help="Inference device: cuda:0 or cpu (auto if omitted)")
+    parser.add_argument(
+        "--profile",
+        choices=("standard", "demo"),
+        default="standard",
+        help="Detection timing preset: standard (3s/8s) or demo (1s/3s)",
+    )
     parser.add_argument("--host", default="0.0.0.0", help="Web server bind host")
     parser.add_argument("--port", type=int, default=8000, help="Web server port")
     parser.add_argument("--udp-port", type=int, default=9001, help="WS63 UDP listen port")
@@ -60,9 +72,19 @@ def main(argv: list[str] | None = None) -> int:
 
     clock = MonotonicClock()
     fusion = FusionArbiter(log_path=fusion_log_path)
+    recorder = SessionRecorder(base_dir="datasets/recorded")
+
+    suspect_sec, alarm_sec = PROFILE_PRESETS[args.profile]
+    cam_cfg = CameraFallConfig(
+        profile=args.profile,
+        suspect_sec=suspect_sec,
+        alarm_sec=alarm_sec,
+    )
+
     store = EventStore(
         clock=clock,
         fusion=fusion,
+        recorder=recorder,
         strict_9_keys=not args.no_strict_9_keys,
         log_path=event_log_path,
         port=args.port,
@@ -83,9 +105,12 @@ def main(argv: list[str] | None = None) -> int:
             weights=args.weights,
             device=args.device,
             clock=clock,
+            config=cam_cfg,
             on_event=on_cam_event,
+            recorder=recorder,
             show_cv=args.show_cv,
         )
+        store.camera_source = camera_source
 
     if not args.no_udp:
         udp_source = UdpRadarSource(
@@ -93,6 +118,7 @@ def main(argv: list[str] | None = None) -> int:
             port=args.udp_port,
             clock=clock,
             on_event=on_udp_event,
+            recorder=recorder,
         )
 
     app = create_app(
@@ -100,6 +126,7 @@ def main(argv: list[str] | None = None) -> int:
         camera_source=camera_source,
         udp_source=udp_source,
         fusion=fusion,
+        recorder=recorder,
         clock=clock,
         port=args.port,
     )
@@ -121,7 +148,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[OK] UDP radar listener started on 0.0.0.0:{args.udp_port}")
         if camera_source is not None:
             camera_source.start()
-            print(f"[OK] Camera source started (source={args.source}, device={camera_source.pose.device})")
+            print(
+                f"[OK] Camera source started (source={args.source}, "
+                f"device={camera_source.pose.device}, profile={args.profile})"
+            )
         ticker_thread.start()
 
         print("[OK] Web dashboard URLs (PC & Mobile):")
@@ -133,6 +163,8 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         stop_ticker.set()
         ticker_thread.join(timeout=1.5)
+        if recorder.is_recording():
+            recorder.stop()
         if camera_source is not None:
             camera_source.stop()
         if udp_source is not None:

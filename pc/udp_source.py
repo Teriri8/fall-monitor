@@ -23,6 +23,7 @@ class UdpRadarSource:
         clock: MonotonicClock | None = None,
         config: RadarFallConfig | None = None,
         on_event: Callable[[dict[str, Any]], None] | None = None,
+        recorder: Any | None = None,
         device_id: str = "ws63-1",
     ) -> None:
         self.host = host
@@ -30,6 +31,7 @@ class UdpRadarSource:
         self.clock = clock or MonotonicClock()
         self.detector = FallDetector(config=config, device_id=device_id)
         self.on_event = on_event
+        self.recorder = recorder
         self.device_id = device_id
 
         self._lock = threading.Lock()
@@ -72,6 +74,18 @@ class UdpRadarSource:
             self._last_sample = sample
             self._last_event = event
             self._last_rx_s = now_s
+
+        if self.recorder is not None and self.recorder.is_recording():
+            self.recorder.write_radar(
+                sample.raw,
+                {
+                    "gear": sample.gear,
+                    "rng": sample.rng,
+                    "vel": sample.vel,
+                    "snr": sample.snr,
+                    "human": sample.human,
+                },
+            )
 
         if self.on_event is not None:
             self.on_event(event)

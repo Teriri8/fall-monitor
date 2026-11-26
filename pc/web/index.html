@@ -3,266 +3,719 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>跌倒监测系统 v2 · 多模态监控台</title>
+  <title>跌倒监测系统 v2.1 · 多模态智能监控台</title>
   <style>
     :root {
-      --bg: #0b0f17;
-      --panel: #131a26;
-      --panel-2: #192233;
-      --border: #263248;
-      --text: #e6edf7;
-      --muted: #8ea0b8;
+      --bg: #070b14;
+      --bg-glow: radial-gradient(circle at 14% 12%, rgba(56, 189, 248, 0.10), transparent 36%),
+                 radial-gradient(circle at 86% 6%, rgba(99, 102, 241, 0.10), transparent 34%),
+                 #070b14;
+      --panel: rgba(15, 23, 42, 0.86);
+      --panel-solid: #101828;
+      --panel-soft: rgba(23, 33, 54, 0.78);
+      --border: rgba(148, 163, 184, 0.15);
+      --border-strong: rgba(148, 163, 184, 0.28);
+      --text: #f1f5f9;
+      --muted: #94a3b8;
       --green: #22c55e;
+      --sky: #38bdf8;
       --amber: #f59e0b;
       --red: #ef4444;
-      --blue: #38bdf8;
+      --indigo: #818cf8;
+      --radius: 14px;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
     }
+
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
-      background: var(--bg);
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg-glow);
       color: var(--text);
       line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
     }
+
     .wrap {
-      max-width: 1320px;
+      max-width: 1400px;
       margin: 0 auto;
-      padding: 16px;
+      padding: 18px 18px 28px;
       display: grid;
-      gap: 14px;
+      gap: 16px;
     }
-    .banner {
+
+    /* Top Header */
+    .topbar {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 14px;
       padding: 14px 18px;
-      border-radius: 12px;
       background: var(--panel);
+      backdrop-filter: blur(12px);
       border: 1px solid var(--border);
-      transition: border-color 0.2s, background 0.2s;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
     }
-    .banner.state-normal { border-left: 6px solid var(--green); }
-    .banner.state-suspect { border-left: 6px solid var(--amber); background: #1e1910; }
-    .banner.state-alarm {
-      border-left: 6px solid var(--red);
-      background: #2b1215;
-      animation: pulseRed 1.2s infinite;
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
-    @keyframes pulseRed {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-      50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 11px;
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(99, 102, 241, 0.26));
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
     }
-    .title-group h1 { margin: 0; font-size: 1.15rem; font-weight: 700; }
-    .title-group .sub { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
-    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .brand h1 {
+      margin: 0;
+      font-size: 1.08rem;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ver-tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: rgba(56, 189, 248, 0.14);
+      color: #7dd3fc;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+    }
+    .brand-sub {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 2px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+    .live-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      margin-right: 4px;
+    }
+    .live-dot.warn { background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .seg {
+      display: inline-flex;
+      background: rgba(10, 15, 28, 0.9);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 3px;
+      gap: 3px;
+    }
+    .seg button {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      padding: 6px 11px;
+      border-radius: 7px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: all 0.18s ease;
+    }
+    .seg button.active {
+      background: linear-gradient(135deg, #0284c7, #4f46e5);
+      color: #fff;
+      box-shadow: 0 2px 10px rgba(56, 189, 248, 0.28);
+    }
+
     button {
       cursor: pointer;
       border: 1px solid var(--border);
-      background: var(--panel-2);
+      background: var(--panel-soft);
       color: var(--text);
-      padding: 7px 12px;
-      border-radius: 8px;
-      font-size: 0.85rem;
+      padding: 7px 13px;
+      border-radius: 9px;
+      font-size: 0.82rem;
       font-weight: 600;
+      transition: border-color 0.18s, transform 0.12s, background 0.18s;
     }
-    button:hover { border-color: var(--blue); }
-    button.danger { background: #3b171b; border-color: #7f1d1d; }
+    button:hover { border-color: rgba(56, 189, 248, 0.55); background: rgba(30, 41, 66, 0.95); }
+    button:active { transform: translateY(1px); }
+    button.danger {
+      background: rgba(127, 29, 29, 0.45);
+      border-color: rgba(239, 68, 68, 0.45);
+      color: #fecaca;
+    }
+    button.danger:hover { background: rgba(153, 27, 27, 0.65); border-color: var(--red); }
+    button.primary {
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.28), rgba(79, 70, 229, 0.32));
+      border-color: rgba(56, 189, 248, 0.45);
+      color: #e0f2fe;
+    }
+    button.rec-active {
+      background: rgba(220, 38, 38, 0.28);
+      border-color: var(--red);
+      color: #fecaca;
+      animation: pulseRec 1.4s infinite;
+    }
+    @keyframes pulseRec {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+      50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+    }
+
+    /* Alert Strip */
+    .alert-strip {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      border-radius: var(--radius);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-left: 5px solid var(--green);
+      box-shadow: var(--shadow);
+      transition: all 0.22s ease;
+    }
+    .alert-strip.state-normal { border-left-color: var(--green); }
+    .alert-strip.state-lying {
+      border-left-color: var(--sky);
+      background: linear-gradient(90deg, rgba(14, 165, 233, 0.14), rgba(15, 23, 42, 0.9));
+    }
+    .alert-strip.state-suspect {
+      border-left-color: var(--amber);
+      background: linear-gradient(90deg, rgba(245, 158, 11, 0.16), rgba(15, 23, 42, 0.92));
+    }
+    .alert-strip.state-alarm {
+      border-left-color: var(--red);
+      background: linear-gradient(90deg, rgba(239, 68, 68, 0.26), rgba(28, 14, 22, 0.95));
+      animation: pulseAlarm 1.15s infinite;
+    }
+    @keyframes pulseAlarm {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.42); }
+      50% { box-shadow: 0 0 0 9px rgba(239, 68, 68, 0); }
+    }
+    .alert-title {
+      font-size: 1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .alert-meta {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 3px;
+      font-variant-numeric: tabular-nums;
+    }
+    .progress-wrap {
+      margin-top: 8px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.15);
+      overflow: hidden;
+      max-width: 460px;
+      display: none;
+    }
+    .progress-wrap.show { display: block; }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--sky), var(--amber), var(--red));
+      transition: width 0.2s linear;
+    }
+
     .pill {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       padding: 4px 10px;
       border-radius: 999px;
-      font-size: 0.78rem;
+      font-size: 0.74rem;
       font-weight: 700;
+      letter-spacing: 0.3px;
       text-transform: uppercase;
-      background: #1d283a;
+      background: rgba(30, 41, 59, 0.9);
+      border: 1px solid var(--border);
       color: var(--text);
     }
-    .pill.normal { background: rgba(34, 197, 94, 0.16); color: #86efac; }
-    .pill.suspect { background: rgba(245, 158, 11, 0.18); color: #fcd34d; }
-    .pill.alarm { background: rgba(239, 68, 68, 0.22); color: #fca5a5; }
-    .pill.degraded { background: rgba(56, 189, 248, 0.16); color: #7dd3fc; }
+    .pill.normal { background: rgba(34, 197, 94, 0.14); border-color: rgba(34, 197, 94, 0.35); color: #86efac; }
+    .pill.lying { background: rgba(56, 189, 248, 0.16); border-color: rgba(56, 189, 248, 0.4); color: #7dd3fc; }
+    .pill.suspect { background: rgba(245, 158, 11, 0.18); border-color: rgba(245, 158, 11, 0.45); color: #fcd34d; }
+    .pill.alarm { background: rgba(239, 68, 68, 0.24); border-color: rgba(239, 68, 68, 0.55); color: #fca5a5; }
+    .pill.degraded { background: rgba(99, 102, 241, 0.16); border-color: rgba(129, 140, 248, 0.38); color: #c7d2fe; }
 
+    /* Main Grid */
     .main-grid {
       display: grid;
       grid-template-columns: 1.55fr 1fr;
-      gap: 14px;
+      gap: 16px;
+      align-items: start;
     }
-    @media (max-width: 960px) {
+    @media (max-width: 1024px) {
       .main-grid { grid-template-columns: 1fr; }
     }
+
     .card {
       background: var(--panel);
+      backdrop-filter: blur(10px);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 14px;
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow);
     }
-    .card h2 {
-      margin: 0 0 10px 0;
-      font-size: 0.96rem;
-      color: #cbd5e1;
+    .card-head {
       display: flex;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
     }
-    .video-box {
+    .card-head h2 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .card-note {
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+
+    /* Video Viewport */
+    .video-shell {
+      position: relative;
       width: 100%;
-      background: #070a0f;
-      border-radius: 8px;
+      aspect-ratio: 16 / 9;
+      background: #04070d;
+      border-radius: 11px;
       overflow: hidden;
       border: 1px solid var(--border);
-      aspect-ratio: 16 / 9;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .video-box img {
+    .video-shell img {
       width: 100%;
       height: 100%;
       object-fit: contain;
       display: block;
     }
-    .metrics-bar {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
-      gap: 8px;
-      margin-top: 10px;
+    .video-badges {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      gap: 6px;
+      z-index: 2;
     }
-    .metric {
-      background: var(--panel-2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 10px;
+    .v-badge {
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 7px;
+      background: rgba(7, 11, 20, 0.76);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      color: #e2e8f0;
+      font-variant-numeric: tabular-nums;
+      backdrop-filter: blur(6px);
     }
-    .metric .k { font-size: 0.72rem; color: var(--muted); }
-    .metric .v { font-size: 0.98rem; font-weight: 700; margin-top: 2px; }
+    .v-badge.rec {
+      background: rgba(185, 28, 28, 0.85);
+      border-color: #f87171;
+      color: #fff;
+      display: none;
+    }
+    .v-badge.rec.show { display: inline-flex; align-items: center; gap: 5px; }
 
-    .device-stack { display: grid; gap: 10px; }
-    .dev-card {
-      background: var(--panel-2);
+    /* KPI Metrics Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    @media (max-width: 720px) {
+      .metrics-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    .kpi {
+      background: var(--panel-soft);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 12px;
+      padding: 10px 11px;
     }
+    .kpi .k { font-size: 0.72rem; color: var(--muted); }
+    .kpi .v {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-top: 3px;
+      font-variant-numeric: tabular-nums;
+      color: #f8fafc;
+    }
+
+    /* Right Column Stack */
+    .right-stack { display: grid; gap: 14px; }
+    .dev-list { display: grid; gap: 10px; }
+    .dev-card {
+      background: var(--panel-soft);
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 12px 13px;
+      transition: border-color 0.18s;
+    }
+    .dev-card:hover { border-color: var(--border-strong); }
     .dev-head {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 8px;
+      gap: 8px;
     }
-    .dev-name { font-weight: 700; font-size: 0.95rem; }
+    .dev-name { font-weight: 700; font-size: 0.9rem; }
     .kv-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-      font-size: 0.8rem;
+      gap: 6px 8px;
+      font-size: 0.78rem;
+      font-variant-numeric: tabular-nums;
     }
-    .kv-item { color: var(--muted); }
+    .kv-item { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .kv-item b { color: var(--text); font-weight: 600; }
 
-    .sim-bar {
+    /* Recorder Box */
+    .scenario-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .chip {
+      padding: 5px 10px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .chip.active {
+      background: rgba(56, 189, 248, 0.18);
+      border-color: rgba(56, 189, 248, 0.55);
+      color: #e0f2fe;
+    }
+    .rec-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .rec-stats {
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .sim-row {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      align-items: center;
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px dashed var(--border);
-      font-size: 0.8rem;
-      color: var(--muted);
+    }
+    .sim-row button { flex: 1; min-width: 135px; }
+
+    /* Bottom Grid */
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.65fr;
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 1024px) {
+      .bottom-grid { grid-template-columns: 1fr; }
     }
 
-    .table-wrap { overflow-x: auto; max-height: 290px; overflow-y: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    /* Snapshots Gallery */
+    .snap-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .snap-item {
+      background: var(--panel-soft);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+    .snap-item:hover { transform: translateY(-2px); border-color: rgba(56, 189, 248, 0.55); }
+    .snap-item img {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      display: block;
+      background: #050810;
+    }
+    .snap-cap {
+      padding: 6px 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .snap-empty {
+      padding: 28px 14px;
+      text-align: center;
+      font-size: 0.82rem;
+      color: var(--muted);
+      background: rgba(10, 15, 28, 0.55);
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+    }
+
+    /* Timeline Table */
+    .table-wrap {
+      overflow-x: auto;
+      max-height: 310px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.79rem; font-variant-numeric: tabular-nums; }
     th, td {
-      padding: 7px 8px;
+      padding: 8px 10px;
       border-bottom: 1px solid var(--border);
       text-align: left;
       white-space: nowrap;
     }
-    th { color: var(--muted); position: sticky; top: 0; background: var(--panel); }
-    code { color: #93c5fd; }
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      background: #0d1424;
+      z-index: 1;
+    }
+    tr:hover td { background: rgba(56, 189, 248, 0.05); }
+    code { color: #7dd3fc; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+
+    /* Lightbox Modal */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 7, 15, 0.84);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 99;
+    }
+    .modal.open { display: flex; }
+    .modal-box {
+      max-width: 960px;
+      width: 100%;
+      background: var(--panel-solid);
+      border: 1px solid var(--border-strong);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+    }
+    .modal-head {
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .modal-box img { width: 100%; display: block; max-height: 75vh; object-fit: contain; background: #000; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div id="globalBanner" class="banner state-normal">
-      <div class="title-group">
-        <h1>跌倒监测系统 v2 · 摄像头主判 + WS63 雷达辅助</h1>
-        <div class="sub" id="bannerSub">等待设备数据…</div>
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9" stroke-opacity="0.35"></circle>
+            <path d="M12 3a9 9 0 0 1 9 9"></path>
+            <circle cx="12" cy="12" r="3" fill="#38bdf8"></circle>
+            <path d="M12 12l5-5"></path>
+          </svg>
+        </div>
+        <div>
+          <h1>跌倒监测系统 <span class="ver-tag">v2.1 · 多模态融合</span></h1>
+          <div class="brand-sub">
+            <span id="sseStatus"><span class="live-dot warn"></span>连接中…</span>
+            <span id="lanUrls"></span>
+          </div>
+        </div>
       </div>
-      <div class="controls">
-        <span id="fusionModePill" class="pill degraded">INIT</span>
-        <span id="globalStatePill" class="pill normal">NORMAL</span>
+
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="灵敏度模式">
+          <button id="btnModeStandard" class="active" onclick="setProfile('standard')">标准模式 3s/8s</button>
+          <button id="btnModeDemo" onclick="setProfile('demo')">快速演示 1s/3s</button>
+        </div>
         <button id="soundBtn" onclick="toggleSound()">提示音: 关</button>
         <button class="danger" onclick="resetSystem()">复位报警</button>
       </div>
-    </div>
+    </header>
 
+    <!-- Global Status Strip -->
+    <section id="alertStrip" class="alert-strip state-normal">
+      <div>
+        <div class="alert-title">
+          <span id="alertHeadline">系统运行正常 · 等待监测目标</span>
+          <span id="fusionModePill" class="pill degraded">INIT</span>
+          <span id="globalStatePill" class="pill normal">NORMAL</span>
+        </div>
+        <div class="alert-meta" id="bannerSub">主状态=normal | 等待 cam-1 / ws63-1 数据…</div>
+        <div id="lieProgressWrap" class="progress-wrap">
+          <div id="lieProgressFill" class="progress-fill"></div>
+        </div>
+      </div>
+      <div style="text-align:right;font-size:0.78rem;color:var(--muted)" id="profileSummary">
+        门限：疑似 3.0s · 报警 8.0s
+      </div>
+    </section>
+
+    <!-- Main 2-Column Workspace -->
     <div class="main-grid">
-      <div class="card">
-        <h2>
-          <span>实时姿态画面 (cam-1)</span>
-          <span id="streamStatus" class="pill normal">SSE 连接中</span>
-        </h2>
-        <div class="video-box">
-          <img id="camImg" src="/video/cam-1" alt="cam-1 video stream" />
+      <!-- Left: Video & Telemetry -->
+      <section class="card">
+        <div class="card-head">
+          <h2>实时姿态视频流 (<code>cam-1</code>)</h2>
+          <span class="card-note" id="deviceBadge">推理后端：检测中…</span>
         </div>
-        <div class="metrics-bar">
-          <div class="metric"><div class="k">帧率 FPS</div><div class="v" id="mFps">-</div></div>
-          <div class="metric"><div class="k">推理耗时</div><div class="v" id="mInfer">-</div></div>
-          <div class="metric"><div class="k">宽高比 w/h</div><div class="v" id="mWh">-</div></div>
-          <div class="metric"><div class="k">躯干倾角</div><div class="v" id="mAngle">-</div></div>
-          <div class="metric"><div class="k">髋部垂直速度</div><div class="v" id="mVy">-</div></div>
-          <div class="metric"><div class="k">躺地计时</div><div class="v" id="mLie">-</div></div>
+        <div class="video-shell">
+          <div class="video-badges">
+            <span class="v-badge rec" id="recOverlay">● REC 0.0s</span>
+            <span class="v-badge" id="fpsOverlay">FPS -</span>
+          </div>
+          <img id="camImg" src="/video/cam-1" alt="cam-1 live pose feed" />
         </div>
-      </div>
+        <div class="metrics-grid">
+          <div class="kpi"><div class="k">帧率 FPS</div><div class="v" id="mFps">-</div></div>
+          <div class="kpi"><div class="k">推理耗时</div><div class="v" id="mInfer">-</div></div>
+          <div class="kpi"><div class="k">宽高比 w/h</div><div class="v" id="mWh">-</div></div>
+          <div class="kpi"><div class="k">躯干倾角</div><div class="v" id="mAngle">-</div></div>
+          <div class="kpi"><div class="k">髋部垂直速度</div><div class="v" id="mVy">-</div></div>
+          <div class="kpi"><div class="k">倒地计时</div><div class="v" id="mLie">0.0 s</div></div>
+        </div>
+      </section>
 
-      <div class="card">
-        <h2>
-          <span>多设备状态分组</span>
-          <span style="font-size:0.78rem;color:var(--muted)" id="lanUrls"></span>
-        </h2>
-        <div class="device-stack">
-          <div class="dev-card" id="card-fusion-1"></div>
-          <div class="dev-card" id="card-cam-1"></div>
-          <div class="dev-card" id="card-ws63-1"></div>
-        </div>
-        <div class="sim-bar">
-          <span>联调模拟雷达帧:</span>
-          <button onclick="simRadar('normal')">正常帧 (否决测试)</button>
-          <button onclick="simRadar('suspect')">疑似跌倒帧 (协同确认)</button>
-        </div>
-      </div>
+      <!-- Right: Device Cards + Recorder + Radar Sim -->
+      <aside class="right-stack">
+        <section class="card">
+          <div class="card-head">
+            <h2>多设备实时状态</h2>
+            <span class="card-note">PC 单调钟同步</span>
+          </div>
+          <div class="dev-list">
+            <div class="dev-card" id="card-fusion-1"></div>
+            <div class="dev-card" id="card-cam-1"></div>
+            <div class="dev-card" id="card-ws63-1"></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>同步采数录制（消融实验）</h2>
+            <span class="card-note" id="clipCountNote">已存 0 段</span>
+          </div>
+          <div class="scenario-row" id="scenarioRow">
+            <button class="chip active" data-sc="fall" onclick="pickScenario('fall')">真跌倒</button>
+            <button class="chip" data-sc="sofa" onclick="pickScenario('sofa')">躺沙发</button>
+            <button class="chip" data-sc="sit" onclick="pickScenario('sit')">坐下/弯腰</button>
+            <button class="chip" data-sc="walk" onclick="pickScenario('walk')">正常走动</button>
+            <button class="chip" data-sc="empty" onclick="pickScenario('empty')">空场景</button>
+          </div>
+          <div class="rec-controls">
+            <button id="recToggleBtn" class="primary" onclick="toggleRecord()">开始同步录制</button>
+            <div class="rec-stats" id="recStats">同时保存 .mp4 + 雷达 .jsonl → manifest.csv</div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head">
+            <h2>雷达联调模拟</h2>
+            <span class="card-note">无需实体 WS63 即可测试仲裁</span>
+          </div>
+          <div class="sim-row">
+            <button onclick="simRadar('normal')">正常帧 · 否决测试</button>
+            <button onclick="simRadar('suspect')">疑似跌倒 · 协同确认</button>
+          </div>
+        </section>
+      </aside>
     </div>
 
-    <div class="card">
-      <h2>
-        <span>事件时间线（9 字段协议）</span>
-        <span style="font-size:0.78rem;color:var(--muted)">device_id / t_ms / frame_id / state / action / reason / rng / vel / human</span>
-      </h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>t_ms</th>
-              <th>device_id</th>
-              <th>frame_id</th>
-              <th>state</th>
-              <th>action</th>
-              <th>reason</th>
-              <th>rng</th>
-              <th>vel</th>
-              <th>human</th>
-            </tr>
-          </thead>
-          <tbody id="historyBody"></tbody>
-        </table>
+    <!-- Bottom: Snapshots + 9-Field Timeline -->
+    <div class="bottom-grid">
+      <section class="card">
+        <div class="card-head">
+          <h2>自动抓拍留证 (<code>logs/snapshots</code>)</h2>
+          <span class="card-note">触发 alarm / veto 自动留档</span>
+        </div>
+        <div id="snapContainer"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>9 字段事件时间线</h2>
+          <span class="card-note">device_id / t_ms / frame_id / state / action / reason / rng / vel / human</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>t_ms</th>
+                <th>device_id</th>
+                <th>frame</th>
+                <th>state</th>
+                <th>action</th>
+                <th>reason</th>
+                <th>rng</th>
+                <th>vel</th>
+                <th>human</th>
+              </tr>
+            </thead>
+            <tbody id="historyBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Lightbox Modal -->
+  <div id="snapModal" class="modal" onclick="closeModal()">
+    <div class="modal-box" onclick="event.stopPropagation()">
+      <div class="modal-head">
+        <span id="modalTitle">快照预览</span>
+        <button onclick="closeModal()">关闭</button>
       </div>
+      <img id="modalImg" src="" alt="snapshot preview" />
     </div>
   </div>
 
@@ -270,6 +723,9 @@
     let soundEnabled = false;
     let audioCtx = null;
     let lastBeepAt = 0;
+    let selectedScenario = "fall";
+    let isRecording = false;
+    let lastSnapSignature = "";
 
     function toggleSound() {
       soundEnabled = !soundEnabled;
@@ -296,6 +752,57 @@
       osc.stop(audioCtx.currentTime + 0.25);
     }
 
+    function pickScenario(sc) {
+      selectedScenario = sc;
+      document.querySelectorAll("#scenarioRow .chip").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.sc === sc);
+      });
+    }
+
+    async function setProfile(profile) {
+      await fetch("/api/mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile })
+      });
+      await refreshState();
+    }
+
+    async function toggleRecord() {
+      if (!isRecording) {
+        await fetch("/api/record/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scenario: selectedScenario })
+        });
+      } else {
+        const res = await fetch("/api/record/stop", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fall_start_s: 0 })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const saved = data.result && data.result.saved;
+          if (saved) {
+            document.getElementById("recStats").textContent =
+              `已保存 ${saved.clip_id} (${saved.duration_s}s, ${saved.frames}帧)`;
+          }
+        }
+      }
+      await refreshState();
+    }
+
+    function openModal(url, title) {
+      document.getElementById("modalTitle").textContent = title;
+      document.getElementById("modalImg").src = url;
+      document.getElementById("snapModal").classList.add("open");
+    }
+
+    function closeModal() {
+      document.getElementById("snapModal").classList.remove("open");
+    }
+
     function renderDeviceCard(id, label, ev, extraNote) {
       const el = document.getElementById("card-" + id);
       if (!el) return;
@@ -303,9 +810,9 @@
         el.innerHTML = `
           <div class="dev-head">
             <span class="dev-name">${label} (<code>${id}</code>)</span>
-            <span class="pill degraded">离线 / 等待</span>
+            <span class="pill degraded">等待接入</span>
           </div>
-          <div style="font-size:0.8rem;color:var(--muted)">${extraNote || "暂无上报事件"}</div>
+          <div style="font-size:0.78rem;color:var(--muted)">${extraNote || "暂无上报事件"}</div>
         `;
         return;
       }
@@ -325,20 +832,74 @@
       `;
     }
 
+    function renderSnapshots(snaps) {
+      const sig = (snaps || []).map(s => s.name).join("|");
+      if (sig === lastSnapSignature && lastSnapSignature !== "") return;
+      lastSnapSignature = sig;
+      const box = document.getElementById("snapContainer");
+      if (!snaps || !snaps.length) {
+        box.innerHTML = `<div class="snap-empty">暂无报警或否决抓拍<br/>触发 <code>alarm</code> 或 <code>radar_veto</code> 后会自动保存高清骨骼留证图</div>`;
+        return;
+      }
+      box.innerHTML = `<div class="snap-grid">${snaps.slice(0, 4).map(s => `
+        <div class="snap-item" onclick="openModal('${s.url}', '${s.tag} · ${s.created_at}')">
+          <img src="${s.url}" alt="${s.tag}" loading="lazy" />
+          <div class="snap-cap">
+            <span><code>${s.tag}</code></span>
+            <span>${s.created_at}</span>
+          </div>
+        </div>
+      `).join("")}</div>`;
+    }
+
     function renderSnapshot(snap) {
       const devices = snap.devices || {};
       const cam = devices["cam-1"];
       const ws = devices["ws63-1"];
       const fus = devices["fusion-1"];
       const fusionStatus = snap.fusion_status || {};
+      const m = snap.camera_metrics || {};
+      const prof = snap.profile || { profile: "standard", suspect_sec: 3.0, alarm_sec: 8.0 };
+
+      // Mode buttons
+      document.getElementById("btnModeStandard").classList.toggle("active", prof.profile === "standard");
+      document.getElementById("btnModeDemo").classList.toggle("active", prof.profile === "demo");
+      document.getElementById("profileSummary").textContent =
+        `门限：疑似 ${Number(prof.suspect_sec).toFixed(1)}s · 报警 ${Number(prof.alarm_sec).toFixed(1)}s`;
 
       const mainEv = fus || cam || ws;
-      const gState = mainEv ? mainEv.state : "normal";
-      const banner = document.getElementById("globalBanner");
-      banner.className = "banner state-" + gState;
+      const rawState = mainEv ? mainEv.state : "normal";
+      const lieSec = Number(m.lying_elapsed_s || 0);
+      const suspectSec = Number(prof.suspect_sec || 3.0);
+      const alarmSec = Number(prof.alarm_sec || 8.0);
+      const isPreSuspectLying = rawState === "normal" && lieSec > 0.2;
+      const uiState = isPreSuspectLying ? "lying" : rawState;
+
+      const strip = document.getElementById("alertStrip");
+      strip.className = "alert-strip state-" + uiState;
+
       const gPill = document.getElementById("globalStatePill");
-      gPill.className = "pill " + gState;
-      gPill.textContent = gState.toUpperCase();
+      gPill.className = "pill " + uiState;
+      gPill.textContent = isPreSuspectLying ? `倒地计时 ${lieSec.toFixed(1)}s` : rawState.toUpperCase();
+
+      const headlines = {
+        normal: "监测状态正常 · 无跌倒风险",
+        lying: `检测到倒地姿态 · 计时中 (${lieSec.toFixed(1)}s / ${suspectSec.toFixed(1)}s)`,
+        suspect: `疑似跌倒警报 · 持续观察中 (${lieSec.toFixed(1)}s / ${alarmSec.toFixed(1)}s)`,
+        alarm: "跌倒报警已确认 · 请立即核查现场！"
+      };
+      document.getElementById("alertHeadline").textContent = headlines[uiState] || headlines.normal;
+
+      const progWrap = document.getElementById("lieProgressWrap");
+      const progFill = document.getElementById("lieProgressFill");
+      if (lieSec > 0.1 || rawState === "suspect" || rawState === "alarm") {
+        progWrap.classList.add("show");
+        const pct = rawState === "alarm" ? 100 : Math.min(100, (lieSec / Math.max(alarmSec, 0.5)) * 100);
+        progFill.style.width = pct.toFixed(1) + "%";
+      } else {
+        progWrap.classList.remove("show");
+        progFill.style.width = "0%";
+      }
 
       const mode = fusionStatus.mode || (ws ? "FUSION" : "DEGRADED");
       const modePill = document.getElementById("fusionModePill");
@@ -349,25 +910,54 @@
         ? `主状态=${mainEv.state} | action=${mainEv.action} | reason=${mainEv.reason} | t_ms=${mainEv.t_ms}`
         : "等待 cam-1 或 ws63-1 上报…";
 
-      maybeBeep(gState);
+      maybeBeep(rawState);
 
-      const m = snap.camera_metrics || {};
+      // Camera KPIs
       document.getElementById("mFps").textContent = m.fps != null ? m.fps : "-";
+      document.getElementById("fpsOverlay").textContent = m.fps != null ? `FPS ${m.fps}` : "FPS -";
       document.getElementById("mInfer").textContent = m.infer_ms != null ? m.infer_ms + " ms" : "-";
       document.getElementById("mWh").textContent = m.wh_ratio != null ? m.wh_ratio : "-";
       document.getElementById("mAngle").textContent = m.torso_angle_deg != null ? m.torso_angle_deg + "°" : "-";
       document.getElementById("mVy").textContent = m.hip_vy != null ? m.hip_vy : "-";
-      document.getElementById("mLie").textContent = m.lying_elapsed_s != null ? m.lying_elapsed_s + " s" : "-";
-
-      renderDeviceCard("fusion-1", "融合仲裁", fus, "等待摄像头或雷达输入");
-      renderDeviceCard("cam-1", "摄像头主判", cam, "等待视频姿态帧");
-      renderDeviceCard("ws63-1", "WS63 雷达辅助", ws, "未收到 UDP 雷达帧（当前降级为摄像头单路）");
-
-      const urls = snap.urls || [];
-      if (urls.length) {
-        document.getElementById("lanUrls").textContent = urls.join(" | ");
+      document.getElementById("mLie").textContent = lieSec.toFixed(1) + " s";
+      if (m.device) {
+        document.getElementById("deviceBadge").textContent = `YOLOv8n-pose · ${m.device}`;
       }
 
+      // Devices
+      renderDeviceCard("fusion-1", "融合仲裁", fus, "等待摄像头或雷达输入");
+      renderDeviceCard("cam-1", "摄像头主判", cam, "等待视频姿态帧");
+      renderDeviceCard("ws63-1", "WS63 雷达辅助", ws, "未收到 UDP 9001 雷达帧（当前自动降级为单摄像头）");
+
+      // Recorder status
+      const rec = snap.recording || {};
+      isRecording = Boolean(rec.active);
+      const recBtn = document.getElementById("recToggleBtn");
+      const recOverlay = document.getElementById("recOverlay");
+      document.getElementById("clipCountNote").textContent = `已存 ${rec.clip_count || 0} 段`;
+      if (isRecording) {
+        recBtn.textContent = `停止录制 (${rec.elapsed_s}s)`;
+        recBtn.className = "rec-active";
+        recOverlay.textContent = `● REC ${rec.elapsed_s}s`;
+        recOverlay.classList.add("show");
+        document.getElementById("recStats").textContent =
+          `录制中: ${rec.clip_id} | 视频 ${rec.frames} 帧 · 雷达 ${rec.radar_frames} 帧`;
+      } else {
+        recBtn.textContent = "开始同步录制";
+        recBtn.className = "primary";
+        recOverlay.classList.remove("show");
+      }
+
+      // LAN URLs
+      const urls = snap.urls || [];
+      if (urls.length) {
+        document.getElementById("lanUrls").textContent = urls.join("  ·  ");
+      }
+
+      // Snapshots
+      renderSnapshots(snap.snapshots || []);
+
+      // Timeline
       const tbody = document.getElementById("historyBody");
       const rows = (snap.history || []).slice(0, 35).map(ev => `
         <tr>
@@ -407,11 +997,10 @@
     }
 
     function connectSSE() {
-      const pill = document.getElementById("streamStatus");
+      const el = document.getElementById("sseStatus");
       const es = new EventSource("/api/events/stream");
       es.onopen = () => {
-        pill.className = "pill normal";
-        pill.textContent = "实时连接";
+        el.innerHTML = '<span class="live-dot"></span>实时连接';
       };
       es.addEventListener("snapshot", (e) => {
         renderSnapshot(JSON.parse(e.data).data);
@@ -420,14 +1009,13 @@
         refreshState();
       });
       es.onerror = () => {
-        pill.className = "pill suspect";
-        pill.textContent = "重连中…";
+        el.innerHTML = '<span class="live-dot warn"></span>重连中…';
       };
     }
 
     refreshState();
     connectSSE();
-    setInterval(refreshState, 1200);
+    setInterval(refreshState, 900);
   </script>
 </body>
 </html>
