@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>跌倒监测系统 v2 · 多模态监控台</title>
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --panel: #131a26;
+      --panel-2: #192233;
+      --border: #263248;
+      --text: #e6edf7;
+      --muted: #8ea0b8;
+      --green: #22c55e;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --blue: #38bdf8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.45;
+    }
+    .wrap {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+    }
+    .banner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 18px;
+      border-radius: 12px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .banner.state-normal { border-left: 6px solid var(--green); }
+    .banner.state-suspect { border-left: 6px solid var(--amber); background: #1e1910; }
+    .banner.state-alarm {
+      border-left: 6px solid var(--red);
+      background: #2b1215;
+      animation: pulseRed 1.2s infinite;
+    }
+    @keyframes pulseRed {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    }
+    .title-group h1 { margin: 0; font-size: 1.15rem; font-weight: 700; }
+    .title-group .sub { font-size: 0.85rem; color: var(--muted); margin-top: 2px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    button {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    button:hover { border-color: var(--blue); }
+    button.danger { background: #3b171b; border-color: #7f1d1d; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      background: #1d283a;
+      color: var(--text);
+    }
+    .pill.normal { background: rgba(34, 197, 94, 0.16); color: #86efac; }
+    .pill.suspect { background: rgba(245, 158, 11, 0.18); color: #fcd34d; }
+    .pill.alarm { background: rgba(239, 68, 68, 0.22); color: #fca5a5; }
+    .pill.degraded { background: rgba(56, 189, 248, 0.16); color: #7dd3fc; }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1.55fr 1fr;
+      gap: 14px;
+    }
+    @media (max-width: 960px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .card h2 {
+      margin: 0 0 10px 0;
+      font-size: 0.96rem;
+      color: #cbd5e1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .video-box {
+      width: 100%;
+      background: #070a0f;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      aspect-ratio: 16 / 9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .video-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    .metrics-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .metric {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    .metric .k { font-size: 0.72rem; color: var(--muted); }
+    .metric .v { font-size: 0.98rem; font-weight: 700; margin-top: 2px; }
+
+    .device-stack { display: grid; gap: 10px; }
+    .dev-card {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .dev-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .dev-name { font-weight: 700; font-size: 0.95rem; }
+    .kv-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      font-size: 0.8rem;
+    }
+    .kv-item { color: var(--muted); }
+    .kv-item b { color: var(--text); font-weight: 600; }
+
+    .sim-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border);
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .table-wrap { overflow-x: auto; max-height: 290px; overflow-y: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    th, td {
+      padding: 7px 8px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      white-space: nowrap;
+    }
+    th { color: var(--muted); position: sticky; top: 0; background: var(--panel); }
+    code { color: #93c5fd; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="globalBanner" class="banner state-normal">
+      <div class="title-group">
+        <h1>跌倒监测系统 v2 · 摄像头主判 + WS63 雷达辅助</h1>
+        <div class="sub" id="bannerSub">等待设备数据…</div>
+      </div>
+      <div class="controls">
+        <span id="fusionModePill" class="pill degraded">INIT</span>
+        <span id="globalStatePill" class="pill normal">NORMAL</span>
+        <button id="soundBtn" onclick="toggleSound()">提示音: 关</button>
+        <button class="danger" onclick="resetSystem()">复位报警</button>
+      </div>
+    </div>
+
+    <div class="main-grid">
+      <div class="card">
+        <h2>
+          <span>实时姿态画面 (cam-1)</span>
+          <span id="streamStatus" class="pill normal">SSE 连接中</span>
+        </h2>
+        <div class="video-box">
+          <img id="camImg" src="/video/cam-1" alt="cam-1 video stream" />
+        </div>
+        <div class="metrics-bar">
+          <div class="metric"><div class="k">帧率 FPS</div><div class="v" id="mFps">-</div></div>
+          <div class="metric"><div class="k">推理耗时</div><div class="v" id="mInfer">-</div></div>
+          <div class="metric"><div class="k">宽高比 w/h</div><div class="v" id="mWh">-</div></div>
+          <div class="metric"><div class="k">躯干倾角</div><div class="v" id="mAngle">-</div></div>
+          <div class="metric"><div class="k">髋部垂直速度</div><div class="v" id="mVy">-</div></div>
+          <div class="metric"><div class="k">躺地计时</div><div class="v" id="mLie">-</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>
+          <span>多设备状态分组</span>
+          <span style="font-size:0.78rem;color:var(--muted)" id="lanUrls"></span>
+        </h2>
+        <div class="device-stack">
+          <div class="dev-card" id="card-fusion-1"></div>
+          <div class="dev-card" id="card-cam-1"></div>
+          <div class="dev-card" id="card-ws63-1"></div>
+        </div>
+        <div class="sim-bar">
+          <span>联调模拟雷达帧:</span>
+          <button onclick="simRadar('normal')">正常帧 (否决测试)</button>
+          <button onclick="simRadar('suspect')">疑似跌倒帧 (协同确认)</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>
+        <span>事件时间线（9 字段协议）</span>
+        <span style="font-size:0.78rem;color:var(--muted)">device_id / t_ms / frame_id / state / action / reason / rng / vel / human</span>
+      </h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>t_ms</th>
+              <th>device_id</th>
+              <th>frame_id</th>
+              <th>state</th>
+              <th>action</th>
+              <th>reason</th>
+              <th>rng</th>
+              <th>vel</th>
+              <th>human</th>
+            </tr>
+          </thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let soundEnabled = false;
+    let audioCtx = null;
+    let lastBeepAt = 0;
+
+    function toggleSound() {
+      soundEnabled = !soundEnabled;
+      document.getElementById("soundBtn").textContent = "提示音: " + (soundEnabled ? "开" : "关");
+      if (soundEnabled && !audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx) audioCtx = new Ctx();
+      }
+    }
+
+    function maybeBeep(state) {
+      if (!soundEnabled || state !== "alarm" || !audioCtx) return;
+      const now = Date.now();
+      if (now - lastBeepAt < 1800) return;
+      lastBeepAt = now;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 880;
+      gain.gain.value = 0.08;
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.25);
+    }
+
+    function renderDeviceCard(id, label, ev, extraNote) {
+      const el = document.getElementById("card-" + id);
+      if (!el) return;
+      if (!ev) {
+        el.innerHTML = `
+          <div class="dev-head">
+            <span class="dev-name">${label} (<code>${id}</code>)</span>
+            <span class="pill degraded">离线 / 等待</span>
+          </div>
+          <div style="font-size:0.8rem;color:var(--muted)">${extraNote || "暂无上报事件"}</div>
+        `;
+        return;
+      }
+      el.innerHTML = `
+        <div class="dev-head">
+          <span class="dev-name">${label} (<code>${id}</code>)</span>
+          <span class="pill ${ev.state}">${ev.state}</span>
+        </div>
+        <div class="kv-grid">
+          <div class="kv-item">action: <b>${ev.action}</b></div>
+          <div class="kv-item">reason: <b>${ev.reason}</b></div>
+          <div class="kv-item">human: <b>${ev.human}</b></div>
+          <div class="kv-item">frame: <b>${ev.frame_id}</b></div>
+          <div class="kv-item">rng: <b>${ev.rng}</b></div>
+          <div class="kv-item">vel: <b>${ev.vel}</b></div>
+        </div>
+      `;
+    }
+
+    function renderSnapshot(snap) {
+      const devices = snap.devices || {};
+      const cam = devices["cam-1"];
+      const ws = devices["ws63-1"];
+      const fus = devices["fusion-1"];
+      const fusionStatus = snap.fusion_status || {};
+
+      const mainEv = fus || cam || ws;
+      const gState = mainEv ? mainEv.state : "normal";
+      const banner = document.getElementById("globalBanner");
+      banner.className = "banner state-" + gState;
+      const gPill = document.getElementById("globalStatePill");
+      gPill.className = "pill " + gState;
+      gPill.textContent = gState.toUpperCase();
+
+      const mode = fusionStatus.mode || (ws ? "FUSION" : "DEGRADED");
+      const modePill = document.getElementById("fusionModePill");
+      modePill.className = "pill " + (mode === "FUSION" ? "normal" : "degraded");
+      modePill.textContent = mode + (fusionStatus.veto_active ? " · VETO" : "");
+
+      document.getElementById("bannerSub").textContent = mainEv
+        ? `主状态=${mainEv.state} | action=${mainEv.action} | reason=${mainEv.reason} | t_ms=${mainEv.t_ms}`
+        : "等待 cam-1 或 ws63-1 上报…";
+
+      maybeBeep(gState);
+
+      const m = snap.camera_metrics || {};
+      document.getElementById("mFps").textContent = m.fps != null ? m.fps : "-";
+      document.getElementById("mInfer").textContent = m.infer_ms != null ? m.infer_ms + " ms" : "-";
+      document.getElementById("mWh").textContent = m.wh_ratio != null ? m.wh_ratio : "-";
+      document.getElementById("mAngle").textContent = m.torso_angle_deg != null ? m.torso_angle_deg + "°" : "-";
+      document.getElementById("mVy").textContent = m.hip_vy != null ? m.hip_vy : "-";
+      document.getElementById("mLie").textContent = m.lying_elapsed_s != null ? m.lying_elapsed_s + " s" : "-";
+
+      renderDeviceCard("fusion-1", "融合仲裁", fus, "等待摄像头或雷达输入");
+      renderDeviceCard("cam-1", "摄像头主判", cam, "等待视频姿态帧");
+      renderDeviceCard("ws63-1", "WS63 雷达辅助", ws, "未收到 UDP 雷达帧（当前降级为摄像头单路）");
+
+      const urls = snap.urls || [];
+      if (urls.length) {
+        document.getElementById("lanUrls").textContent = urls.join(" | ");
+      }
+
+      const tbody = document.getElementById("historyBody");
+      const rows = (snap.history || []).slice(0, 35).map(ev => `
+        <tr>
+          <td>${ev.t_ms}</td>
+          <td><code>${ev.device_id}</code></td>
+          <td>${ev.frame_id}</td>
+          <td><span class="pill ${ev.state}">${ev.state}</span></td>
+          <td>${ev.action}</td>
+          <td>${ev.reason}</td>
+          <td>${ev.rng}</td>
+          <td>${ev.vel}</td>
+          <td>${ev.human}</td>
+        </tr>
+      `);
+      tbody.innerHTML = rows.join("");
+    }
+
+    async function refreshState() {
+      try {
+        const res = await fetch("/api/state");
+        if (res.ok) renderSnapshot(await res.json());
+      } catch (e) {}
+    }
+
+    async function resetSystem() {
+      await fetch("/api/reset", { method: "POST" });
+      await refreshState();
+    }
+
+    async function simRadar(mode) {
+      await fetch("/api/simulate/radar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode })
+      });
+      await refreshState();
+    }
+
+    function connectSSE() {
+      const pill = document.getElementById("streamStatus");
+      const es = new EventSource("/api/events/stream");
+      es.onopen = () => {
+        pill.className = "pill normal";
+        pill.textContent = "实时连接";
+      };
+      es.addEventListener("snapshot", (e) => {
+        renderSnapshot(JSON.parse(e.data).data);
+      });
+      es.addEventListener("device_event", () => {
+        refreshState();
+      });
+      es.onerror = () => {
+        pill.className = "pill suspect";
+        pill.textContent = "重连中…";
+      };
+    }
+
+    refreshState();
+    connectSSE();
+    setInterval(refreshState, 1200);
+  </script>
+</body>
+</html>
